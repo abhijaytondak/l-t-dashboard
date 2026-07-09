@@ -1,13 +1,14 @@
 "use client";
-import type { ClaimRecord, Verdict } from "@lt/shared";
+import type { ClaimRecord, ClaimStatus } from "@lt/shared";
+import { statusOf } from "@lt/shared";
 import { Icon, T, rupeeShort, type IconName } from "@lt/ui";
 
-type Tab = "ALL" | Verdict;
+type Filter = "ALL" | ClaimStatus;
 
-export function KpiRow({ claims, onPick }: { claims: ClaimRecord[]; onPick: (t: Tab) => void }) {
+export function KpiRow({ claims, onPick }: { claims: ClaimRecord[]; onPick: (t: Filter) => void }) {
   const tot = claims.length || 1;
-  const n = (v: Verdict) => claims.filter((c) => c.summary.verdict === v).length;
-  const clean = n("CLEAN"), ded = n("PROCESSED_WITH_DEDUCTION"), man = n("PUSH_TO_MANUAL");
+  const st = (s: ClaimStatus) => claims.filter((c) => statusOf(c.summary.verdict) === s).length;
+  const approved = st("APPROVED"), rejected = st("REJECTED");
   const paid = claims.reduce((a, c) => a + (c.summary.computedPayable ?? 0), 0);
   const pct = (x: number) => `${Math.round((x / tot) * 100)}% of claims`;
 
@@ -17,21 +18,17 @@ export function KpiRow({ claims, onPick }: { claims: ClaimRecord[]; onPick: (t: 
 
   return (
     <div style={{ padding: "18px 28px 6px" }}>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 12 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
         <div className="card kcard" style={{ position: "relative" }} onClick={() => onPick("ALL")}>
           <div style={{ padding: "15px 16px" }}><div className="lbl" style={{ marginBottom: 9 }}>Total claims</div><div className="mono" style={{ fontSize: 25, fontWeight: 700 }}>{claims.length}</div><div style={{ fontSize: 11.5, color: T.muted, marginTop: 4 }}>in the feed</div></div>
           {chip(T.surface2, T.ink2, "list")}
         </div>
-        <div className="card kcard" style={{ position: "relative" }} onClick={() => onPick("CLEAN")}>
-          <div style={{ padding: "15px 16px" }}><div className="lbl" style={{ marginBottom: 9 }}>Auto-approved</div><div className="mono" style={{ fontSize: 25, fontWeight: 700 }}>{clean}</div><div style={{ fontSize: 11.5, color: T.green, marginTop: 4 }}>{pct(clean)}</div></div>
+        <div className="card kcard" style={{ position: "relative" }} onClick={() => onPick("APPROVED")}>
+          <div style={{ padding: "15px 16px" }}><div className="lbl" style={{ marginBottom: 9 }}>Approved</div><div className="mono" style={{ fontSize: 25, fontWeight: 700 }}>{approved}</div><div style={{ fontSize: 11.5, color: T.green, marginTop: 4 }}>{pct(approved)}</div></div>
           {chip(T.greenBg, T.green, "checkCircle")}
         </div>
-        <div className="card kcard" style={{ position: "relative" }} onClick={() => onPick("PROCESSED_WITH_DEDUCTION")}>
-          <div style={{ padding: "15px 16px" }}><div className="lbl" style={{ marginBottom: 9 }}>Deduction</div><div className="mono" style={{ fontSize: 25, fontWeight: 700 }}>{ded}</div><div style={{ fontSize: 11.5, color: T.amber, marginTop: 4 }}>{pct(ded)}</div></div>
-          {chip(T.amberBg, T.amber, "minusCircle")}
-        </div>
-        <div className="card kcard" style={{ position: "relative" }} onClick={() => onPick("PUSH_TO_MANUAL")}>
-          <div style={{ padding: "15px 16px" }}><div className="lbl" style={{ marginBottom: 9 }}>To manual</div><div className="mono" style={{ fontSize: 25, fontWeight: 700 }}>{man}</div><div style={{ fontSize: 11.5, color: T.red, marginTop: 4 }}>{pct(man)}</div></div>
+        <div className="card kcard" style={{ position: "relative" }} onClick={() => onPick("REJECTED")}>
+          <div style={{ padding: "15px 16px" }}><div className="lbl" style={{ marginBottom: 9 }}>Rejected</div><div className="mono" style={{ fontSize: 25, fontWeight: 700 }}>{rejected}</div><div style={{ fontSize: 11.5, color: T.red, marginTop: 4 }}>{pct(rejected)}</div></div>
           {chip(T.redBg, T.red, "alertTriangle")}
         </div>
         <div className="card" style={{ position: "relative", overflow: "hidden" }}>
