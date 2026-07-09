@@ -6,9 +6,28 @@ import { Icon, SwatchPill, STATUS, T, rupee } from "@lt/ui";
 
 type Tab = "ALL" | ClaimStatus;
 type SortKey = "date" | "name" | "vendor" | "gross" | "disallowed" | "payable" | "status";
+type DatePreset = "all" | "this" | "prev" | "custom";
 
 const SO: Record<ClaimStatus, number> = { APPROVED: 0, REJECTED: 1 };
 const PAGE = 8;
+
+const DATE_LABEL: Record<DatePreset, string> = {
+  all: "All dates", this: "This month", prev: "Previous month", custom: "Custom range",
+};
+const iso = (y: number, m: number, d: number) => `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+
+// Resolve a preset to a [from, to] bill-date window (YYYY-MM-DD, inclusive).
+// billDate strings compare lexicographically, so no Date math is needed downstream.
+function dateWindow(preset: DatePreset, from: string, to: string): { from: string | null; to: string | null } | null {
+  if (preset === "all") return null;
+  if (preset === "custom") return from || to ? { from: from || null, to: to || null } : null;
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = preset === "this" ? now.getMonth() : now.getMonth() - 1;
+  const start = new Date(y, m, 1);
+  const last = new Date(start.getFullYear(), start.getMonth() + 1, 0).getDate();
+  return { from: iso(start.getFullYear(), start.getMonth(), 1), to: iso(start.getFullYear(), start.getMonth(), last) };
+}
 
 const SORTS: [SortKey, "asc" | "desc", string][] = [
   ["date", "desc", "Newest bill date (default)"],
@@ -40,8 +59,11 @@ export function ClaimsTable({ claims, tab, onTab, onOpen }: Props) {
   const [page, setPage] = useState(1);
   const [fVendor, setFVendor] = useState<Set<string>>(new Set());
   const [fType, setFType] = useState<Set<string>>(new Set());
+  const [datePreset, setDatePreset] = useState<DatePreset>("all");
+  const [dFrom, setDFrom] = useState("");
+  const [dTo, setDTo] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [pop, setPop] = useState<"filter" | "sort" | null>(null);
+  const [pop, setPop] = useState<"filter" | "sort" | "date" | null>(null);
   const toolRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
 
@@ -56,7 +78,9 @@ export function ClaimsTable({ claims, tab, onTab, onOpen }: Props) {
     return () => { document.removeEventListener("click", onDoc); document.removeEventListener("keydown", onKey); };
   }, [query]);
 
-  useEffect(() => { setPage(1); }, [tab, query, fVendor, fType]);
+  useEffect(() => { setPage(1); }, [tab, query, fVendor, fType, datePreset, dFrom, dTo]);
+
+  const dateWin = useMemo(() => dateWindow(datePreset, dFrom, dTo), [datePreset, dFrom, dTo]);
 
   const counts = useMemo(() => ({
     ALL: claims.length,
@@ -72,6 +96,11 @@ export function ClaimsTable({ claims, tab, onTab, onOpen }: Props) {
       if (tab !== "ALL" && statusOf(c.summary.verdict) !== tab) return false;
       if (fVendor.size && !fVendor.has(c.summary.vendor)) return false;
       if (fType.size && !fType.has(c.summary.claimType)) return false;
+      if (dateWin) {
+        const bd = c.summary.billDate;
+        if (dateWin.from && bd < dateWin.from) return false;
+        if (dateWin.to && bd > dateWin.to) return false;
+      }
       if (q) {
         const hay = `${c.identity.employeeNameOnBill} ${c.identity.psNumber} ${c.summary.vendor} ${c.summary.claimType} ${c.billIdentity.billNumber}`.toLowerCase();
         if (!hay.includes(q)) return false;
@@ -92,7 +121,7 @@ export function ClaimsTable({ claims, tab, onTab, onOpen }: Props) {
       }
     });
     return list;
-  }, [claims, tab, query, fVendor, fType, sort]);
+  }, [claims, tab, query, fVendor, fType, dateWin, sort]);
 
   const pages = Math.max(1, Math.ceil(rows.length / PAGE));
   const safePage = Math.min(page, pages);
@@ -106,9 +135,15 @@ export function ClaimsTable({ claims, tab, onTab, onOpen }: Props) {
   const toggleSel = (id: string) => setSelected((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const allShownSelected = view.length > 0 && view.every((c) => selected.has(c.id));
 
+  const clearDate = () => { setDatePreset("all"); setDFrom(""); setDTo(""); };
+  const dateChipLabel = datePreset === "custom"
+    ? `Date: ${dFrom || "…"} → ${dTo || "…"}`
+    : `Date: ${DATE_LABEL[datePreset]}`;
+
   const nFacets = fVendor.size + fType.size;
   const chips: [string, () => void][] = [];
   if (tab !== "ALL") chips.push([`Status: ${STATUS[tab].label}`, () => onTab("ALL")]);
+  if (dateWin) chips.push([dateChipLabel, clearDate]);
   fVendor.forEach((v) => chips.push([`Vendor: ${v}`, () => toggle(fVendor, v, setFVendor)]));
   fType.forEach((v) => chips.push([`Type: ${v}`, () => toggle(fType, v, setFType)]));
 
@@ -131,6 +166,24 @@ export function ClaimsTable({ claims, tab, onTab, onOpen }: Props) {
               {query
                 ? <span style={{ position: "absolute", right: 9, top: "50%", transform: "translateY(-50%)", cursor: "pointer", color: T.muted }} onClick={() => { setQuery(""); searchRef.current?.focus(); }}><Icon name="x" size={15} /></span>
                 : <span className="kbd" style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)" }}>/</span>}
+            </div>
+            <div style={{ position: "relative" }}>
+              <button className={`btn ${dateWin ? "primary" : ""}`} onClick={() => setPop(pop === "date" ? null : "date")}><Icon name="calendar" size={15} />{datePreset === "all" ? "Date" : DATE_LABEL[datePreset]}</button>
+              {pop === "date" && (
+                <div className="pop" style={{ right: 0, top: 44, minWidth: 240 }}>
+                  <h5>Date of claim</h5>
+                  {(["all", "this", "prev", "custom"] as DatePreset[]).map((p) => (
+                    <button key={p} className={`sortitem ${datePreset === p ? "on" : ""}`} onClick={() => { setDatePreset(p); if (p !== "custom") setPop(null); }}>{DATE_LABEL[p]}</button>
+                  ))}
+                  {datePreset === "custom" && (
+                    <div style={{ marginTop: 8, display: "grid", gap: 8 }}>
+                      <label style={{ fontSize: 11, color: T.muted, display: "grid", gap: 3 }}>From<input type="date" className="search" style={{ padding: "7px 9px" }} value={dFrom} max={dTo || undefined} onChange={(e) => setDFrom(e.target.value)} /></label>
+                      <label style={{ fontSize: 11, color: T.muted, display: "grid", gap: 3 }}>To<input type="date" className="search" style={{ padding: "7px 9px" }} value={dTo} min={dFrom || undefined} onChange={(e) => setDTo(e.target.value)} /></label>
+                    </div>
+                  )}
+                  {dateWin && <div style={{ marginTop: 10 }}><button className="btn" style={{ width: "100%", justifyContent: "center" }} onClick={clearDate}>Clear date filter</button></div>}
+                </div>
+              )}
             </div>
             <div style={{ position: "relative" }}>
               <button className="btn" onClick={() => setPop(pop === "filter" ? null : "filter")}><Icon name="sliders" />Filter {nFacets > 0 && <span className="badge">{nFacets}</span>}</button>
@@ -162,7 +215,7 @@ export function ClaimsTable({ claims, tab, onTab, onOpen }: Props) {
             {chips.map(([label, drop], i) => (
               <span key={i} className="pill" onClick={drop} style={{ background: T.surface2, color: T.ink2, border: `1px solid ${T.line}`, cursor: "pointer", fontWeight: 500, padding: "3px 9px", borderRadius: 999, fontSize: 11, display: "inline-flex", alignItems: "center", gap: 4 }}>{label} <Icon name="x" size={11} /></span>
             ))}
-            <button className="sortitem" style={{ width: "auto", color: T.blue, fontWeight: 600, padding: "2px 8px" }} onClick={() => { onTab("ALL"); setFVendor(new Set()); setFType(new Set()); }}>Clear all</button>
+            <button className="sortitem" style={{ width: "auto", color: T.blue, fontWeight: 600, padding: "2px 8px" }} onClick={() => { onTab("ALL"); setFVendor(new Set()); setFType(new Set()); clearDate(); }}>Clear all</button>
           </div>
         )}
 
