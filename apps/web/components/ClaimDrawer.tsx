@@ -101,11 +101,9 @@ function Body({ claim, onClose, onAct, onExport }: { claim: ClaimRecord; onClose
             <div style={{ fontSize: 12.5, fontWeight: 700, color: T.red, marginBottom: claim.routing.manualReason.length ? 9 : 0 }}>Rejected — failed compliance</div>
             {claim.routing.manualReason.map((r, i) => (<div key={i} style={{ display: "flex", gap: 9, marginBottom: 6 }}><span style={{ color: T.red, fontWeight: 700 }}>→</span><span style={{ fontSize: 12.5, color: T.ink2, lineHeight: 1.5 }}>{r}</span></div>))}
           </div>
-        ) : ded ? (
-          <div style={{ background: T.amberBg, border: `1px solid ${T.amber}33`, borderRadius: 12, padding: "13px 16px", marginBottom: 12, fontSize: 12.5, color: T.ink2, lineHeight: 1.5 }}><b style={{ color: T.amber }}>−{rupee(s.totalDisallowed)} deducted</b> across {claim.disallowances.length} line item(s) — approved on the balance.</div>
-        ) : (
+        ) : !ded ? (
           <div style={{ background: T.greenBg, border: `1px solid ${T.green}33`, borderRadius: 12, padding: "13px 16px", marginBottom: 12, fontSize: 12.5, color: T.ink2, lineHeight: 1.5 }}><b style={{ color: T.green }}>Full amount approved</b> — every line classified as payable.</div>
-        )}
+        ) : null}
 
         {claim._extNotes && <div className="panelBox"><div style={{ padding: "12px 16px" }}><div className="lbl" style={{ marginBottom: 5 }}>Reader notes</div><div style={{ fontSize: 12.5, color: T.ink2, lineHeight: 1.6 }}>{claim._extNotes}</div></div></div>}
 
