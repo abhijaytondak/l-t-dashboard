@@ -1,7 +1,7 @@
 // Design tokens (dashboard-collection study): cool-neutral canvas, white cards,
 // one brand accent — L&T blue #23459C — over semantic verdict colours.
 
-import type { Verdict, Classification, CheckResult, Confidence, ReviewStatus } from "@lt/shared";
+import type { Verdict, Classification, CheckResult, Confidence, ReviewStatus, ClaimStatus } from "@lt/shared";
 
 export const T = {
   bg: "#F4F5F7", surface: "#FFFFFF", surface2: "#F8F9FB", sidebar: "#FFFFFF",
@@ -31,6 +31,12 @@ export const VERDICT_LABEL: Record<Verdict, string> = {
   CLEAN: "Auto-approved",
   PROCESSED_WITH_DEDUCTION: "Processed with deduction",
   PUSH_TO_MANUAL: "Push to manual",
+};
+
+// Binary claim outcome shown across the console (replaces the 3-way verdict).
+export const STATUS: Record<ClaimStatus, Swatch> = {
+  APPROVED: { fg: T.green, bg: T.greenBg, dot: T.greenDot, label: "Approved" },
+  REJECTED: { fg: T.red, bg: T.redBg, dot: T.redDot, label: "Rejected" },
 };
 
 export const CLASS: Record<Classification, Swatch> = {

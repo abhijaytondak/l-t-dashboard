@@ -8,6 +8,14 @@ export type CheckResult = "PASS" | "WARN" | "FAIL" | "PENDING";
 export type NumberMatch = "MATCH" | "MISMATCH" | "NO_REFERENCE";
 export type Confidence = "high" | "medium" | "low";
 
+// The console now surfaces a single binary outcome instead of three engine
+// verdicts + an HR review state. A claim is either APPROVED (paid, possibly with
+// a deduction) or REJECTED (failed a compliance gate). Deductions and prorations
+// live inside the payable computation, not as a top-level status.
+export type ClaimStatus = "APPROVED" | "REJECTED";
+export const statusOf = (v: Verdict): ClaimStatus =>
+  v === "PUSH_TO_MANUAL" ? "REJECTED" : "APPROVED";
+
 // Human review state layered on top of the engine verdict (reviewer console).
 export type ReviewStatus = "awaiting" | "approved" | "hold" | "rejected" | "cleared";
 
@@ -77,6 +85,8 @@ export interface Computation {
   gst: number | null;
   eligibleLimit: number | null;
   prorationMultiplier: number | null;
+  /** Why the multiplier is < 1 (mid-month join/leave, partial billing period…). */
+  prorationReason: string;
   computedPayable: number | null;
   sanctionCapCheck: string;
 }
@@ -85,8 +95,14 @@ export interface PaymentVerification {
   status: string;
   amountPaid: number | null;
   paymentDate: string;
+  /** Wall-clock time of the UPI transaction (e.g. "14:38"). */
+  paymentTime: string;
   mode: string;
   reference: string;
+  /** UPI payee / merchant string (e.g. "Bharti Airtel Ltd"). */
+  merchantName: string;
+  /** UPI / bank transaction reference id. */
+  transactionId: string;
   matchToBill: string;
   matchNote: string;
 }
